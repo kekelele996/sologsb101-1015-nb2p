@@ -9,6 +9,7 @@ import type { Survey } from '../types/survey'
 import type { Measure } from '../types/measure'
 import type { Support } from '../types/support'
 import type { Review } from '../types/review'
+import type { HandoverManifest } from '../types/handover'
 import { stampSuffix } from './id'
 import { isSupportOverdue, overdueDays } from './dimension'
 
@@ -72,7 +73,21 @@ export function parseSnapshot(text: string): SnapshotParseResult {
       return { ok: false, message: `存档缺少 ${String(key)} 数组。`, snapshot: null }
     }
   }
-  return { ok: true, message: '存档校验通过。', snapshot: data as DatabaseSnapshot }
+  // v3 起新增移交清册 / 归属履历两表：旧版本存档允许缺省，导入时按空表处理
+  const snapshot: DatabaseSnapshot = {
+    ...(data as DatabaseSnapshot),
+    handovers: Array.isArray(data.handovers) ? data.handovers : [],
+    ownershipHistory: Array.isArray(data.ownershipHistory) ? data.ownershipHistory : [],
+  }
+  return { ok: true, message: '存档校验通过。', snapshot }
+}
+
+/** 导出某一侧的移交清册片段 JSON 文件，返回文件名 */
+export function exportHandoverManifestFile(manifest: HandoverManifest): string {
+  const sideLabel = manifest.side === 'from' ? '原单位留存' : '新单位留存'
+  const filename = `移交清册-${manifest.handoverCode}-${sideLabel}-${stampSuffix()}.json`
+  download(filename, JSON.stringify(manifest, null, 2), 'application/json;charset=utf-8')
+  return filename
 }
 
 /** 生成古树养护总览 CSV（一树一行） */

@@ -9,10 +9,11 @@ import type { Survey } from '../types/survey'
 import type { Measure } from '../types/measure'
 import type { Support } from '../types/support'
 import type { Review } from '../types/review'
+import type { OwnershipHistory } from '../types/ownership'
 import { db, initDatabase } from '../utils/db'
 
 /** 时间线条目类型 */
-export type HistoryKind = 'survey' | 'measure' | 'support' | 'review'
+export type HistoryKind = 'survey' | 'measure' | 'support' | 'review' | 'ownership'
 
 export interface HistoryItem {
   key: string
@@ -29,14 +30,16 @@ export const HISTORY_KIND_LABEL: Record<HistoryKind, string> = {
   measure: '复壮措施',
   support: '加固件',
   review: '长势复评',
+  ownership: '管护归属',
 }
 
-/** 纯函数：把四类记录聚合成时间线 */
+/** 纯函数：把五类记录聚合成时间线 */
 export function buildHistory(
   surveys: Survey[],
   measures: Measure[],
   supports: Support[],
-  reviews: Review[]
+  reviews: Review[],
+  ownershipHistory: OwnershipHistory[] = []
 ): HistoryItem[] {
   const items: HistoryItem[] = []
   surveys.forEach((row) => {
@@ -79,6 +82,19 @@ export function buildHistory(
       badge: row.trend,
     })
   })
+  ownershipHistory.forEach((row) => {
+    items.push({
+      key: `ownership-${row.id}`,
+      kind: 'ownership',
+      date: row.fromDate,
+      title: `管护归属 · ${row.owner}`,
+      detail:
+        row.toDate === ''
+          ? `自 ${row.fromDate} 起在管（至今）；来源：${row.source}${row.note === '' ? '' : `（${row.note}）`}`
+          : `${row.fromDate} 至 ${row.toDate} 在管；来源：${row.source}${row.note === '' ? '' : `（${row.note}）`}`,
+      badge: row.source,
+    })
+  })
   return items.sort((a, b) => b.date.localeCompare(a.date))
 }
 
@@ -100,25 +116,28 @@ export function useTreeHistory(treeId: Ref<string | null> | string | null): UseT
   const measures = ref<Measure[]>([])
   const supports = ref<Support[]>([])
   const reviews = ref<Review[]>([])
+  const ownershipHistory = ref<OwnershipHistory[]>([])
   const loading = ref(true)
   const error = ref('')
 
   void initDatabase()
   const subscription = liveQuery(async () => {
     await initDatabase()
-    const [surveyRows, measureRows, supportRows, reviewRows] = await Promise.all([
+    const [surveyRows, measureRows, supportRows, reviewRows, ownershipRows] = await Promise.all([
       db.surveys.toArray(),
       db.measures.toArray(),
       db.supports.toArray(),
       db.reviews.toArray(),
+      db.ownershipHistory.toArray(),
     ])
-    return { surveyRows, measureRows, supportRows, reviewRows }
+    return { surveyRows, measureRows, supportRows, reviewRows, ownershipRows }
   }).subscribe({
-    next: ({ surveyRows, measureRows, supportRows, reviewRows }) => {
+    next: ({ surveyRows, measureRows, supportRows, reviewRows, ownershipRows }) => {
       surveys.value = surveyRows
       measures.value = measureRows
       supports.value = supportRows
       reviews.value = reviewRows
+      ownershipHistory.value = ownershipRows
       loading.value = false
       error.value = ''
     },
@@ -139,7 +158,8 @@ export function useTreeHistory(treeId: Ref<string | null> | string | null): UseT
       surveys.value.filter((row) => row.treeId === id),
       measures.value.filter((row) => row.treeId === id),
       supports.value.filter((row) => row.treeId === id),
-      reviews.value.filter((row) => row.treeId === id)
+      reviews.value.filter((row) => row.treeId === id),
+      ownershipHistory.value.filter((row) => row.treeId === id)
     )
   })
 

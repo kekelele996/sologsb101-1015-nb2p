@@ -5,10 +5,11 @@
  */
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Coin, Files, FirstAidKit, Histogram, OfficeBuilding } from '@element-plus/icons-vue'
+import { Coin, Files, FirstAidKit, Histogram, OfficeBuilding, Switch } from '@element-plus/icons-vue'
 import { useTreeStore } from '@/stores/treeStore'
 import { useMeasureStore } from '@/stores/measureStore'
 import { useReviewStore } from '@/stores/reviewStore'
+import { useHandoverStore } from '@/stores/handoverStore'
 import { ROUTES } from '@/router'
 
 const route = useRoute()
@@ -16,6 +17,7 @@ const router = useRouter()
 const treeStore = useTreeStore()
 const measureStore = useMeasureStore()
 const reviewStore = useReviewStore()
+const handoverStore = useHandoverStore()
 
 const navItems = computed(() => {
   const currentTreeId = treeStore.currentTreeId
@@ -31,6 +33,12 @@ const navItems = computed(() => {
     { path: ROUTES.measures, label: '复壮措施', icon: FirstAidKit, badge: String(treeStore.measures.length) },
     { path: ROUTES.supports, label: '加固件', icon: Coin, badge: String(treeStore.supports.length) },
     { path: ROUTES.reviews, label: '长势复评', icon: Histogram, badge: String(treeStore.reviews.length) },
+    {
+      path: ROUTES.handovers,
+      label: '责任移交',
+      icon: Switch,
+      badge: String(handoverStore.handovers.length),
+    },
   ]
 })
 
@@ -48,6 +56,7 @@ onMounted(() => {
   void treeStore.loadAll()
   void measureStore.init()
   void reviewStore.init()
+  void handoverStore.init()
 })
 
 function go(path: string): void {
@@ -83,6 +92,7 @@ function go(path: string): void {
       <div class="app-header__meta">
         <el-tag v-if="treeStore.currentTree" type="success" effect="dark">
           当前古树：{{ treeStore.currentTree.code }} {{ treeStore.currentTree.species }}
+          · {{ handoverStore.currentOwnerMap[treeStore.currentTree.id] ?? treeStore.currentTree.owner }}
         </el-tag>
         <el-tag v-else type="info">未选择古树</el-tag>
         <el-tag v-if="overdueCount > 0" type="danger" effect="dark">加固件超期 {{ overdueCount }} 件</el-tag>

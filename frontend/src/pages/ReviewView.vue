@@ -15,6 +15,7 @@ import { useIdbTable } from '@/hooks/useIdbTable'
 import { HISTORY_KIND_LABEL, useTreeHistory } from '@/hooks/useTreeHistory'
 import { useReviewStore } from '@/stores/reviewStore'
 import { useTreeStore } from '@/stores/treeStore'
+import { useHandoverStore } from '@/stores/handoverStore'
 import { DB_NAME, DB_SCHEMA_VERSION, db, exportSnapshot, importSnapshot, resetDatabase } from '@/utils/db'
 import { exportSnapshotJson, exportTreeCsvFile, parseSnapshot } from '@/utils/export'
 import { TREND_OPTIONS, VIGOR_OPTIONS, VIGOR_NEED_FOLLOW_UP, type Review, type ReviewDraft, type Trend, type Vigor } from '@/types/review'
@@ -22,6 +23,7 @@ import { TREND_OPTIONS, VIGOR_OPTIONS, VIGOR_NEED_FOLLOW_UP, type Review, type R
 const router = useRouter()
 const treeStore = useTreeStore()
 const reviewStore = useReviewStore()
+const handoverStore = useHandoverStore()
 
 const { rows, loading, remove } = useIdbTable<Review>(db.reviews, { sortByUpdatedAt: false })
 
@@ -189,18 +191,20 @@ async function handleImport(uploadFile: UploadFile): Promise<void> {
   }
   await importSnapshot(result.snapshot)
   await treeStore.loadAll()
+  await handoverStore.init()
   ElMessage.success(`导入成功：${result.message}`)
 }
 
 function handleReset(): void {
   ElMessageBox.confirm(
-    '全部古树档案、树体检查、复壮措施、加固件与长势复评都会被清空，并重新灌入演示数据。',
+    '全部古树档案、树体检查、复壮措施、加固件、长势复评与移交清册都会被清空，并重新灌入演示数据。',
     '确认重置本地数据？',
     { type: 'warning', confirmButtonText: '确认重置', cancelButtonText: '取消' }
   )
     .then(async () => {
       await resetDatabase()
       await treeStore.loadAll()
+      await handoverStore.init()
       ElMessage.success('已重置为演示数据')
     })
     .catch(() => undefined)

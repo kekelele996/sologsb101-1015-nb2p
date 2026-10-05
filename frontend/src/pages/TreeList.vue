@@ -12,6 +12,7 @@ import EmptyPanel from '@/components/common/EmptyPanel.vue'
 import StatBadge from '@/components/common/StatBadge.vue'
 import VigorTag from '@/components/common/VigorTag.vue'
 import { useTreeStore } from '@/stores/treeStore'
+import { useHandoverStore } from '@/stores/handoverStore'
 import {
   PROTECT_LEVEL_OPTIONS,
   TREE_SPECIES_CANDIDATES,
@@ -22,6 +23,12 @@ import {
 
 const router = useRouter()
 const treeStore = useTreeStore()
+const handoverStore = useHandoverStore()
+
+/** 当前管护归属（以归属履历为准，owner 字段兜底） */
+function ownerOf(row: Tree): string {
+  return handoverStore.currentOwnerMap[row.id] ?? row.owner
+}
 
 const dialogVisible = ref(false)
 const submitting = ref(false)
@@ -69,6 +76,7 @@ const totals = computed(() => {
 
 onMounted(() => {
   void treeStore.loadAll()
+  void handoverStore.init()
 })
 
 function openCreate(): void {
@@ -208,11 +216,22 @@ function handleFilterChange(key: string, value: string): void {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="位置 / 管护单位" min-width="240">
+        <el-table-column label="位置 / 当前归属" min-width="240">
           <template #default="{ row }">
             <div class="cell-stack">
               <span>{{ row.location }}</span>
-              <span class="cell-sub">{{ row.owner }}</span>
+              <span class="cell-sub">
+                {{ ownerOf(row) }}
+                <el-tag
+                  v-if="ownerOf(row) !== row.owner"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                  class="owner-shift"
+                >
+                  已由 {{ row.owner }} 移交
+                </el-tag>
+              </span>
             </div>
           </template>
         </el-table-column>
@@ -356,5 +375,9 @@ function handleFilterChange(key: string, value: string): void {
 .cell-warn {
   color: #c0392b;
   font-weight: 600;
+}
+
+.owner-shift {
+  margin-left: 6px;
 }
 </style>

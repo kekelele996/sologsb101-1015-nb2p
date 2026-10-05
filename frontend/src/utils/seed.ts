@@ -9,6 +9,9 @@ import type { Survey } from '../types/survey'
 import type { Measure } from '../types/measure'
 import type { Support } from '../types/support'
 import type { Review } from '../types/review'
+import type { OwnershipHistory } from '../types/ownership'
+import type { Handover, HandoverItem } from '../types/handover'
+import { itemChecksum } from './handover'
 
 const SEED_TIME = '2026-01-08T01:30:00.000Z'
 
@@ -112,11 +115,126 @@ export async function seedDatabase(): Promise<void> {
     wrap<Review>({ id: 'review-c3', treeId: SEED_IDS.treeC, date: '2026-07-20', vigor: '衰弱', trend: '好转', conclusion: '排水改造后积水缓解，新梢萌发量回升。', followUp: '继续按季度监测倾斜度与空洞变化，年度复壮计划中保留透气措施。' }),
   ]
 
-  await db.transaction('rw', db.trees, db.surveys, db.measures, db.supports, db.reviews, async () => {
-    await db.trees.bulkPut(trees)
-    await db.surveys.bulkPut(surveys)
-    await db.measures.bulkPut(measures)
-    await db.supports.bulkPut(supports)
-    await db.reviews.bulkPut(reviews)
-  })
+  // ---------------- 归属履历（升级补录 + 一段已生效移交） ----------------
+  // 演示「台账按现在归属、复评按当时归属」：银杏 2026-04-01 起由市级保护中心接手，
+  // 其 2024 年复评结论仍算海淀区园林绿化服务中心，2026 年复评算新单位。
+  const ownershipHistory: OwnershipHistory[] = [
+    wrap<OwnershipHistory>({
+      id: 'ownership-a1',
+      treeId: SEED_IDS.treeA,
+      owner: '东城区园林绿化局',
+      fromDate: '2023-05-18',
+      toDate: '',
+      source: '升级补录',
+      handoverId: '',
+      note: 'v3 升级：按现有管护单位补录',
+    }),
+    wrap<OwnershipHistory>({
+      id: 'ownership-b1',
+      treeId: SEED_IDS.treeB,
+      owner: '海淀区园林绿化服务中心',
+      fromDate: '2024-07-18',
+      toDate: '2026-04-01',
+      source: '移交清册',
+      handoverId: 'handover-demo-done',
+      note: 'YJ-20260330-001：移交给市古树名木保护中心',
+    }),
+    wrap<OwnershipHistory>({
+      id: 'ownership-b2',
+      treeId: SEED_IDS.treeB,
+      owner: '市古树名木保护中心',
+      fromDate: '2026-04-01',
+      toDate: '',
+      source: '移交清册',
+      handoverId: 'handover-demo-done',
+      note: 'YJ-20260330-001：由海淀区园林绿化服务中心移交',
+    }),
+    wrap<OwnershipHistory>({
+      id: 'ownership-c1',
+      treeId: SEED_IDS.treeC,
+      owner: '朝阳区公园管理中心',
+      fromDate: '2024-08-15',
+      toDate: '',
+      source: '升级补录',
+      handoverId: '',
+      note: 'v3 升级：按现有管护单位补录',
+    }),
+  ]
+
+  // 银杏当前归属同步为新单位（履历是统计真相来源，owner 字段兜底）
+  trees[1].owner = '市古树名木保护中心'
+
+  // ---------------- 移交清册（一个已完成 + 一个对账中含挂起样本） ----------------
+  const doneDate = '2026-04-01'
+  const doneItem: HandoverItem = {
+    treeId: SEED_IDS.treeB,
+    code: '京-02-0113',
+    species: '银杏',
+    protectLevel: '一级',
+    checksum: itemChecksum('京-02-0113', '银杏', '一级', doneDate),
+    fromState: '确认无误',
+    toState: '确认无误',
+    status: '已生效',
+    note: '',
+  }
+  const handovers: Handover[] = [
+    wrap<Handover>({
+      id: 'handover-demo-done',
+      code: 'YJ-20260330-001',
+      fromOwner: '海淀区园林绿化服务中心',
+      toOwner: '市古树名木保护中心',
+      handoverDate: doneDate,
+      status: '已完成',
+      items: [doneItem],
+      archivedFrom: true,
+      archivedTo: true,
+      fromSideImportedAt: '2026-03-30T03:00:00.000Z',
+      toSideImportedAt: '2026-03-30T06:00:00.000Z',
+      reconciledAt: '2026-03-30T06:05:00.000Z',
+    }),
+  ]
+
+  // 对账中批次：侧柏拟移交，新单位侧暂未登记，先挂起等核对（演示「对不上先挂起」）
+  const pendingDate = '2026-10-20'
+  const pendingItem: HandoverItem = {
+    treeId: SEED_IDS.treeC,
+    code: '京-05-0246',
+    species: '侧柏',
+    protectLevel: '二级',
+    checksum: itemChecksum('京-05-0246', '侧柏', '二级', pendingDate),
+    fromState: '确认无误',
+    toState: '未登记',
+    status: '待对账',
+    note: '',
+  }
+  handovers.push(
+    wrap<Handover>({
+      id: 'handover-demo-recon',
+      code: 'YJ-20261005-002',
+      fromOwner: '朝阳区公园管理中心',
+      toOwner: '市古树名木保护中心',
+      handoverDate: pendingDate,
+      status: '对账中',
+      items: [pendingItem],
+      archivedFrom: true,
+      archivedTo: false,
+      fromSideImportedAt: '2026-10-05T02:00:00.000Z',
+      toSideImportedAt: '',
+      reconciledAt: '',
+    })
+  )
+
+  await db.transaction(
+    'rw',
+    [db.trees, db.surveys, db.measures, db.supports, db.reviews, db.ownershipHistory, db.handovers],
+    async () => {
+      await db.trees.bulkPut(trees)
+      await db.surveys.bulkPut(surveys)
+      await db.measures.bulkPut(measures)
+      await db.supports.bulkPut(supports)
+      await db.reviews.bulkPut(reviews)
+      await db.ownershipHistory.bulkPut(ownershipHistory)
+      await db.handovers.bulkPut(handovers)
+    }
+  )
 }
