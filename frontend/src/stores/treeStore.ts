@@ -11,6 +11,7 @@ import type { Survey } from '../types/survey'
 import type { Measure } from '../types/measure'
 import type { Support } from '../types/support'
 import type { Review, Trend, Vigor } from '../types/review'
+import type { Transfer } from '../types/transfer'
 import { VIGOR_NEED_FOLLOW_UP } from '../types/review'
 import {
   DB_SCHEMA_VERSION,
@@ -21,7 +22,7 @@ import {
   putTree,
   removeTree,
 } from '../utils/db'
-import { nowIso, uuid } from '../utils/id'
+import { nowIso, today, uuid } from '../utils/id'
 import {
   LEAN_LEVEL_LABEL,
   annualGrowth,
@@ -110,6 +111,7 @@ export const useTreeStore = defineStore('tree', () => {
   const measures = ref<Measure[]>([])
   const supports = ref<Support[]>([])
   const reviews = ref<Review[]>([])
+  const transfers = ref<Transfer[]>([])
   const loading = ref(true)
   const ready = ref(false)
   const error = ref('')
@@ -201,22 +203,24 @@ export const useTreeStore = defineStore('tree', () => {
       if (!subscribed) {
         subscribed = true
         liveQuery(async () => {
-          const [treeRows, surveyRows, measureRows, supportRows, reviewRows] = await Promise.all([
+          const [treeRows, surveyRows, measureRows, supportRows, reviewRows, transferRows] = await Promise.all([
             db.trees.toArray(),
             db.surveys.toArray(),
             db.measures.toArray(),
             db.supports.toArray(),
             db.reviews.toArray(),
+            db.transfers.toArray(),
           ])
-          return { treeRows, surveyRows, measureRows, supportRows, reviewRows }
+          return { treeRows, surveyRows, measureRows, supportRows, reviewRows, transferRows }
         }).subscribe({
-          next: ({ treeRows, surveyRows, measureRows, supportRows, reviewRows }) => {
+          next: ({ treeRows, surveyRows, measureRows, supportRows, reviewRows, transferRows }) => {
             const sorted = [...treeRows].sort((a, b) => a.code.localeCompare(b.code, 'zh-Hans-CN'))
             trees.value = sorted
             surveys.value = surveyRows
             measures.value = measureRows
             supports.value = supportRows
             reviews.value = reviewRows
+            transfers.value = transferRows
             loading.value = false
             ready.value = true
             error.value = ''
@@ -256,6 +260,7 @@ export const useTreeStore = defineStore('tree', () => {
 
   async function createTree(draft: TreeDraft): Promise<Tree> {
     const stamp = nowIso()
+    const owner = draft.owner.trim()
     const row: Tree = {
       id: uuid('tree'),
       code: draft.code.trim() || '未编号',
@@ -263,7 +268,9 @@ export const useTreeStore = defineStore('tree', () => {
       protectLevel: draft.protectLevel,
       ageYears: draft.ageYears,
       location: draft.location.trim(),
-      owner: draft.owner.trim(),
+      owner,
+      ownershipHistory:
+        owner === '' ? [] : [{ owner, startDate: today(), note: '建档登记管护单位' }],
       lastMeasureDate: '',
       createdAt: stamp,
       updatedAt: stamp,
@@ -277,6 +284,15 @@ export const useTreeStore = defineStore('tree', () => {
   async function updateTree(treeId: string, draft: TreeDraft): Promise<void> {
     const existing = await db.trees.get(treeId)
     if (!existing) return
+    const owner = draft.owner.trim()
+    // 直接改管护单位（非移交流程）时，在归属履历补一段，保留历史
+    const history = Array.isArray(existing.ownershipHistory) ? existing.ownershipHistory : []
+    const ownerChanged = owner !== existing.owner
+    const lastSeg = history[history.length - 1]
+    const ownershipHistory =
+      ownerChanged && owner !== '' && lastSeg?.owner !== owner
+        ? [...history, { owner, startDate: today(), note: '管护单位变更登记' }]
+        : history
     await putTree({
       ...existing,
       code: draft.code.trim() || existing.code,
@@ -284,7 +300,8 @@ export const useTreeStore = defineStore('tree', () => {
       protectLevel: draft.protectLevel,
       ageYears: draft.ageYears,
       location: draft.location.trim(),
-      owner: draft.owner.trim(),
+      owner,
+      ownershipHistory,
     })
   }
 
@@ -305,6 +322,7 @@ export const useTreeStore = defineStore('tree', () => {
     measures,
     supports,
     reviews,
+    transfers,
     loading,
     ready,
     error,

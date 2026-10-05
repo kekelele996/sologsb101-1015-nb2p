@@ -72,6 +72,10 @@ export function parseSnapshot(text: string): SnapshotParseResult {
       return { ok: false, message: `存档缺少 ${String(key)} 数组。`, snapshot: null }
     }
   }
+  // 旧版存档可能没有管护移交表：补空数组，交给 v3 升级逻辑补归属履历
+  if (!Array.isArray(data.transfers)) {
+    ;(data as Partial<DatabaseSnapshot>).transfers = []
+  }
   return { ok: true, message: '存档校验通过。', snapshot: data as DatabaseSnapshot }
 }
 

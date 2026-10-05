@@ -15,6 +15,7 @@ import { useIdbTable } from '@/hooks/useIdbTable'
 import { HISTORY_KIND_LABEL, useTreeHistory } from '@/hooks/useTreeHistory'
 import { useReviewStore } from '@/stores/reviewStore'
 import { useTreeStore } from '@/stores/treeStore'
+import { useTransferStore } from '@/stores/transferStore'
 import { DB_NAME, DB_SCHEMA_VERSION, db, exportSnapshot, importSnapshot, resetDatabase } from '@/utils/db'
 import { exportSnapshotJson, exportTreeCsvFile, parseSnapshot } from '@/utils/export'
 import { TREND_OPTIONS, VIGOR_OPTIONS, VIGOR_NEED_FOLLOW_UP, type Review, type ReviewDraft, type Trend, type Vigor } from '@/types/review'
@@ -22,6 +23,7 @@ import { TREND_OPTIONS, VIGOR_OPTIONS, VIGOR_NEED_FOLLOW_UP, type Review, type R
 const router = useRouter()
 const treeStore = useTreeStore()
 const reviewStore = useReviewStore()
+const transferStore = useTransferStore()
 
 const { rows, loading, remove } = useIdbTable<Review>(db.reviews, { sortByUpdatedAt: false })
 
@@ -84,6 +86,7 @@ const weakCount = computed<number>(
 onMounted(() => {
   void treeStore.loadAll()
   void reviewStore.init()
+  void transferStore.load()
   timelineTreeId.value = treeStore.currentTreeId
 })
 
@@ -341,6 +344,14 @@ function handleFilterChange(key: string, value: string): void {
               </template>
             </el-table-column>
             <el-table-column prop="date" label="复评日期" width="120" />
+            <el-table-column label="结论当时归属" width="170">
+              <template #default="{ row }">
+                <div class="cell-stack">
+                  <span>{{ transferStore.reviewOwnerOf(row) }}</span>
+                  <span class="cell-sub">按复评日期口径</span>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column label="长势" width="160">
               <template #default="{ row }">
                 <VigorTag :vigor="row.vigor" :trend="row.trend" />

@@ -43,6 +43,7 @@ export async function seedDatabase(): Promise<void> {
       ageYears: 320,
       location: '东城区国子监街 18 号院门前',
       owner: '东城区园林绿化局',
+      ownershipHistory: [{ owner: '东城区园林绿化局', startDate: '', note: '历史数据升级补录' }],
       lastMeasureDate: '2025-09-12',
     }),
     wrap<Tree>({
@@ -53,6 +54,7 @@ export async function seedDatabase(): Promise<void> {
       ageYears: 260,
       location: '海淀区香山南路甲 3 号院',
       owner: '海淀区园林绿化服务中心',
+      ownershipHistory: [{ owner: '海淀区园林绿化服务中心', startDate: '', note: '历史数据升级补录' }],
       lastMeasureDate: '2026-03-28',
     }),
     wrap<Tree>({
@@ -63,6 +65,7 @@ export async function seedDatabase(): Promise<void> {
       ageYears: 150,
       location: '朝阳区日坛公园北门内',
       owner: '朝阳区公园管理中心',
+      ownershipHistory: [{ owner: '朝阳区公园管理中心', startDate: '', note: '历史数据升级补录' }],
       lastMeasureDate: '2026-04-11',
     }),
   ]
